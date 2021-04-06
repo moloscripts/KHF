@@ -1,0 +1,132 @@
+---
+title: "Kenya Health Facilities"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+    toc_depth: 5
+    smooth_scroll: false
+    number_sections: false
+    highlight: textmate
+    theme: cerulean
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries and datasets, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(easypackages)
+libraries("tidyverse","rKenyaCensus","skimr","moments","outliers","plotly","rmarkdown","DT","htmltools","widgetframe","kableExtra")
+data("DataCatalogue")
+```
+
+# Data Structure and Health ####
+
+The data set Kenyan Health Facilities contains 5451 observations and 7 columns. Column names include Health Facility Name, Registration Number, Address, Facility Type, Bed Capacity and County.
+A quick glimpse of the data reveals 5425 unique observations under the column Health facility name. This can be interpreted as the total number of all health facilities countrywide as per March 2021. The difference in the two sums indicate 26 duplicates. For analysis purposes, the duplicates were dropped. 
+
+* The total number of beds nationally stands at 65,989
+* Chiromo Funeral Parlor has the highest bed capacity having 2000 beds. 
+* Rift Valley Provincial General Hospital, Nakuru is the second most health facility with 12,000 beds followed by Moi Referral Hospital with 800 beds. 
+* On the contrary, Kiringyaga county has the highest bed capacity per 1000 population with 4 beds per 1000 population. This is closely followed by Kisii, Nairobi, Migori and Kisumu counties which have a bed capacity of two per 1000 population.
+
+
+```{r Bed capacity per county, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE, fig.align="center", fig.width=10, fig.height=7, fig.cap="Figure 1: Bar Chart showing Bed Capacity per Kenyan Counties"}
+# Ke Health Facilities DF
+KenyanHospitalsRAW <- read.csv("./Data/2021Healthfacilities.csv", stringsAsFactors = T)
+KenyanHospitalsRAW <- KenyanHospitalsRAW %>%
+  rename(`Facility Type` = Facility_Type, 
+         `Bed Capacity` = Bed_Capacity,
+         `Facility Name` = Facility_Name)
+
+KenyanHospitals <- KenyanHospitalsRAW[!duplicated(KenyanHospitalsRAW$`Facility Name`), ] # Remove the duplicates
+
+
+# Kenya Population DF
+kenyaPop <- V1_T2.2
+KenyaCountyPop <- kenyaPop %>%
+  filter(County != "Total") %>%
+  arrange(desc(County))
+KenyaCountyPop$Observation <- 1:nrow(KenyaCountyPop)
+
+# Bed Capacity per County
+CountyBedCapacity <- KenyanHospitals %>%
+  select(`Bed Capacity`, County) %>%
+  group_by(County) %>%
+  summarise(`Bed Capacity` = sum(`Bed Capacity`)) %>%
+  arrange(desc(County))
+CountyBedCapacity$Observation <- 1:nrow(CountyBedCapacity)
+
+# Merged DF with total Ke County Population and Bed Capacity per County
+BedCapacity <- merge(CountyBedCapacity, KenyaCountyPop, by ="Observation")
+BedCapacity <- BedCapacity %>%
+  select(County.y, Male, Female, Intersex, Total, `Bed Capacity`) %>%
+  rename(County = County.y)
+
+BedCapacity <- BedCapacity %>%
+  mutate(`Bed Capacity Per 1000 Population` = round((`Bed Capacity`*1000)/Total, 2))
+
+ggplot(BedCapacity, aes(reorder(County,`Bed Capacity Per 1000 Population`), `Bed Capacity Per 1000 Population`)) +
+  geom_col(fill="#f48b29") +
+  labs(x="") +
+  geom_text(aes(label=`Bed Capacity Per 1000 Population`), vjust=1, size=3) +
+  theme_minimal() +
+  coord_flip()
+```
+
+# Data Tables
+Data Tables display absolute values or proportions of various categories in a single variable or/and relationship of two or more variables. Two or more variables are amalagamated using a pivot table. 
+
+## Health Facility Types
+```{r health facilities count, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+HF_Count <- KenyanHospitals %>%
+  group_by(`Facility Type`) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  mutate(`Percentage %` = round(count/sum(count) * 100,1))
+
+datatable(HF_Count, rownames = TRUE, options = list(pageLength = 5, scrollX=T),
+          class = 'display',
+          caption = htmltools::tags$caption(
+            style = 'caption-side: bottom; text-align: center;',
+            'Table 1: ', htmltools::em('Health Facility Types Countrywide')
+            )
+          )
+
+```
+
+<br />
+
+Medical centres account for at least 60% of all health facilities nationwide. Closely followed by Nursing homes that account for at least 12%. Very marginal proportions on maternity homes, cottage hospitals, mobile clinics and Referral Hospitals, accounting to less than 1%.
+
+## Health Facility Levels
+
+```{r HF levels, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+HF_levels <- KenyanHospitals %>%
+  group_by(Level) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  mutate(`Percentage (%)` = round(count/sum(count) * 100,1))
+
+HF_levels %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed","responsive"), font_size = 14)
+```
+
+## Relationship between Health Facility Types and Health Facility Levels 
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+HF_LevelTypes <- table(KenyanHospitals$`Facility Type`, KenyanHospitals$Level)
+HF_LevelTypes <- as.data.frame.matrix(HF_LevelTypes)
+
+datatable(HF_LevelTypes, rownames = TRUE, options = list(pageLength = 5, scrollX=T),
+          class = 'display',
+          caption = htmltools::tags$caption(
+            style = 'caption-side: bottom; text-align: center;',
+            'Table 2: ', htmltools::em('Frequency Table showing relationship Facility Types and levels')
+            )
+          )
+
+```
