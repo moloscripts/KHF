@@ -113,3 +113,22 @@ HF_levels <- KenyanHospitals %>%
   mutate(`Percentage (%)` = round(count/sum(count) * 100,1))
 
 
+
+
+
+# Relationship between Facility Facilities and their Level Types
+HF_LevelTypes <- table(KenyanHospitals$`Facility Type`, KenyanHospitals$Level)
+HF_LevelTypes <- as.data.frame.matrix(HF_LevelTypes)
+class(HF_LevelTypes)
+
+# Counties with the Most Number of Health Facilities
+KenyanHospitals %>%
+  filter(`Facility Type` == "MEDICAL CENTRE / CLINIC") %>%
+  group_by(County) %>%
+  summarise(count=n()) %>%
+  mutate(percent = count/sum(count) * 100) %>%
+  arrange(desc(count)) %>%
+  ggplot(aes(x=reorder(County, percent), percent)) +
+  geom_col(fill="#ff7a00") +
+  coord_flip() + 
+  theme_light()
